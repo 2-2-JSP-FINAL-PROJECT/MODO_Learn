@@ -1,0 +1,27 @@
+# ===== Eclipse 빌드 결과물 (각자 PC에서 자동 생성됨) =====
+/build/
+/bin/
+/target/
+*.class
+
+# ===== Eclipse 워크스페이스 / 개인 설정 =====
+.metadata/
+.recommenders/
+*.launch
+*.tmp
+*.bak
+*.swp
+
+# ===== 로그 / 업로드 파일 =====
+*.log
+/upload/
+
+# ===== OS 파일 =====
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ===== 기타 IDE =====
+.idea/
+*.iml
+.vscode/
