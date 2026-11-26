@@ -1,5 +1,23 @@
 # 📚 MODO_Learn (모두의 강의실)
 
+> **회원 인증 구현 안내:** 추가된 로그인·회원가입은 Java 21 / Servlet / MySQL JDBC 구조이며 View는 제외했습니다. 아래 기존 기획 문서의 Oracle 설명과 구분됩니다.
+
+### 회원 인증 실행 설정
+
+- 로그인: `MemberServlet → LoginService → MemberDAO·DTO`
+- 회원가입: `MemberServlet → SignupService → MemberDAO·DTO`
+- 로그아웃: `MemberServlet → LogoutService` (세션 폐기)
+- `PasswordUtil`은 비밀번호 해시·검증, `LoginFilter`는 비로그인 접근을 `/member/login`으로 이동시킵니다.
+- 회원 기능의 `MemberServlet`은 `HttpServlet`을 직접 상속하고 `doGet`/`doPost`에서 요청을 분기합니다. `EncodingFilter → LoginFilter → CsrfFilter` 순서로 공통 처리를 적용하며 별도 Support 클래스는 사용하지 않습니다.
+- 기능별 계층은 `member/controller`(요청·forward·redirect), `member/service`(로그인·가입·로그아웃), `member/dao`(SQL), `member/dto`(데이터 전달)입니다. View 연결 경로는 `WEB-INF/views/member`이며 JSP 구현은 이번 범위에서 제외했습니다. 다른 기능도 동일하게 기능 패키지 안에 계층을 추가합니다. 이는 Servlet API를 사용하는 MVC(Model 2) 관례이며 별도의 MVC 프레임워크는 사용하지 않습니다.
+- MySQL에 `sql/member-mysql.sql`을 적용하고 기존 `src/main/java/com/modo/common/util/DBUtil.java`의 `URL`, `USER`, `PASSWORD`를 실제 접속 정보로 설정합니다. 원격 코드와 동일하게 `static`에서 드라이버를 로딩하고 `DriverManager.getConnection()`으로 접속합니다. 원격의 `URL`은 빈 문자열이므로 실제 JDBC 주소를 입력해야 합니다(예: `jdbc:mysql://localhost:3306/modo_learn?characterEncoding=UTF-8&serverTimezone=Asia/Seoul`). 기존 테이블이 있다면 별도 구조 검토가 필요하며, 비밀번호 컬럼은 `VARCHAR(255)`를 사용합니다.
+- Maven·Gson·JNDI는 필요 없습니다. MySQL JDBC 드라이버는 `WEB-INF/lib`에 포함돼 있습니다.
+- URL: `/member/login`, `/member/signup`, `/member/logout`, `/member/me`, `/member/check-id`, `/member/check-email`. 실제 context path를 앞에 붙입니다.
+- 로그인·가입 GET은 `X-CSRF-Token` 헤더를 발급합니다. View 미구현 상태에서는 204로 응답합니다. POST에는 같은 세션 쿠키와 `csrfToken` 폼 필드 또는 `X-CSRF-Token` 헤더가 필요하며 본문은 폼 인코딩입니다.
+- 가입 필드: `memberId`, `memberPw`, `memberPwConfirm`, `memberName`, `email`, `schoolLevel`, `grade`. 로그인 필드: `memberId`, `memberPw`. 로그인 성공 시 새 세션·토큰을 사용합니다.
+- 추후 View 위치는 `WEB-INF/views/member/login.jsp`, `signup.jsp`, `me.jsp`입니다. 해당 파일을 추가하면 Servlet이 연결합니다.
+- Eclipse에서 Refresh → Project Clean → 서버 Publish 후 실행합니다.
+
 > **"돈이 없어도, 누구나 좋은 수업을"**
 > 흩어진 무료 강의를 초·중·고 학년별로 한곳에 모은 **SDG 4(양질의 교육) 무료 강의 큐레이션 플랫폼**
 
