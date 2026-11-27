@@ -1,6 +1,6 @@
 <%@ page pageEncoding="UTF-8" import="com.modo.member.dto.LoginUser, com.modo.common.enums.SchoolLevel" %>
 <%--
-	공통 헤더 (현호작성)
+	공통 헤더 (현호작성) /
 
 	사용법 : 각 JSP 맨 위에서
 		<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
