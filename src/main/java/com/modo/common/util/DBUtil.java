@@ -4,11 +4,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
+// 현호작성
 public class DBUtil {
 
-	private static final String URL = "";
-	private static final String USER = "modo";
-	private static final String PASSWORD = "modo1234";
+	private static final String URL = "jdbc:mysql://localhost:3306/modo_learn";
+	private static final String USER = "root";
+	private static final String PASSWORD = "test1234";
 
 	static {
 		try {
