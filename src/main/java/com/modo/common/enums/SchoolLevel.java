@@ -1,11 +1,12 @@
 package com.modo.common.enums;
 
+// 현호작성
 // 학교급 (member, category 공통 / DB는 check)
 public enum SchoolLevel {
 
-	ELEM("초등학교", 6),
-	MIDDLE("중학교", 3),
-	HIGH("고등학교", 3),
+	ELEM("초등", 6),
+	MIDDLE("중등", 3),
+	HIGH("고등", 3),
 	NONE("해당 없음", 0);       // 학부모·교사 (회원만 사용, 학년 없음)
 
 	private final String label;
