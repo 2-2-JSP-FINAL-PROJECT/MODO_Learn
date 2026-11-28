@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 
+import com.modo.member.dto.LoginUser;
 import com.modo.qna.dto.AnswerDto;
 import com.modo.qna.dto.QuestionDto;
 import com.modo.qna.service.QnaService;
@@ -28,7 +29,7 @@ import jakarta.servlet.http.HttpSession;
  *  POST /qna/answer/write         관리자 답변 등록
  *  POST /qna/answer/delete        관리자 답변 삭제
  *
- *  ※ 로그인 정보는 세션의 "loginId"(아이디), "loginRole"(USER / ADMIN) 으로 가정했다.
+ *  ※ 로그인 정보는 팀 로그인이 세션에 넣어 둔 "loginUser"(LoginUser) 에서 꺼낸다.
  *    로그인 담당 팀원이 정한 이름과 다르면 아래 getLoginId(), isAdmin() 두 곳만 고치면 된다.
  */
 @WebServlet({ "/qna/list", "/qna/detail", "/qna/write", "/qna/edit", "/qna/delete",
@@ -112,7 +113,6 @@ public class QnaController extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
-		request.setCharacterEncoding("UTF-8"); // 한글 파라미터 깨짐 방지 (팀 EncodingFilter 가 생기면 지워도 됨)
 
 		String path = request.getServletPath();
 		String ctx = request.getContextPath(); // "/MODO_Learn" 같은 앞부분 주소
@@ -208,16 +208,22 @@ public class QnaController extends HttpServlet {
 		}
 	}
 
+	// 세션에 저장된 로그인 회원 (팀 로그인이 "loginUser" 로 넣어 둠, 로그인 안 했으면 null)
+	private LoginUser getLoginUser(HttpServletRequest request) {
+		HttpSession session = request.getSession(false); // false : 세션이 없으면 새로 만들지 않음
+		return session == null ? null : (LoginUser) session.getAttribute("loginUser");
+	}
+
 	// 로그인한 아이디 (로그인 안 했으면 null)
 	private String getLoginId(HttpServletRequest request) {
-		HttpSession session = request.getSession(false); // false : 세션이 없으면 새로 만들지 않음
-		return session == null ? null : (String) session.getAttribute("loginId");
+		LoginUser loginUser = getLoginUser(request);
+		return loginUser == null ? null : loginUser.getMemberId();
 	}
 
 	// 관리자인지
 	private boolean isAdmin(HttpServletRequest request) {
-		HttpSession session = request.getSession(false);
-		return session != null && "ADMIN".equals(session.getAttribute("loginRole"));
+		LoginUser loginUser = getLoginUser(request);
+		return loginUser != null && loginUser.isAdmin();
 	}
 
 	// Service 가 던진 규칙 위반을 상태 코드 + 안내 문구로 응답

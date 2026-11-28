@@ -3,6 +3,7 @@ package com.modo.report.controller;
 import java.io.IOException;
 import java.sql.SQLException;
 
+import com.modo.member.dto.LoginUser;
 import com.modo.report.dto.ReportDto;
 import com.modo.report.service.ReportService;
 
@@ -24,7 +25,7 @@ import jakarta.servlet.http.HttpSession;
  *    로그인 X  401 {"ok":false, "message":"로그인 후 신고할 수 있습니다."}  → 화면에서 로그인 페이지로 이동
  *    입력 오류 400 {"ok":false, "message":"..."}
  *
- *  ※ 로그인 정보는 세션의 "loginId" 로 가정 (QnaController 와 같음)
+ *  ※ 로그인 정보는 세션의 "loginUser"(LoginUser) 에서 꺼낸다 (QnaController 와 같음)
  */
 @WebServlet("/report/write")
 public class ReportController extends HttpServlet {
@@ -35,10 +36,10 @@ public class ReportController extends HttpServlet {
 	protected void doPost(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
-		request.setCharacterEncoding("UTF-8");
-
+		// 팀 로그인이 세션에 넣어 둔 "loginUser" 에서 아이디를 꺼낸다 (로그인 안 했으면 null)
 		HttpSession session = request.getSession(false);
-		String loginId = (session == null) ? null : (String) session.getAttribute("loginId");
+		LoginUser loginUser = (session == null) ? null : (LoginUser) session.getAttribute("loginUser");
+		String loginId = (loginUser == null) ? null : loginUser.getMemberId();
 
 		try {
 			ReportDto r = new ReportDto();
