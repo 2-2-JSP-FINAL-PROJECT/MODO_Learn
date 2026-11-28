@@ -1,131 +1,181 @@
 package com.modo.qna.dto;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
-// Q&A 질문 1개를 담는 그릇 (question 테이블 + question_summary 뷰)
-public class QuestionDto {
+import com.modo.common.enums.SchoolLevel;
+import com.modo.common.enums.YnType;
 
-	// ---- question 테이블 ----
-	private int qId;               // q_id       질문 번호
-	private String userId;         // user_id     작성자 아이디
-	private Integer catId;         // cat_id      학년·과목 (NULL 가능)
-	private Integer lecId;         // lec_id      관련 강의 (NULL 가능)
-	private String qType;          // q_type      STUDY / SITE
-	private String title;          // title       제목
-	private String content;        // content     내용
-	private int viewCount;         // view_count  조회수
-	private String qStatus;        // q_status    WAIT / ANSWERED
-	private String delYn;          // del_yn      Y / N
-	private Timestamp regDate;     // reg_date    등록일
-	private Timestamp modDate;     // mod_date    수정일
+// 성환작성
+// Q&A 질문 1개를 담는 DTO (question 테이블 + question_summary 뷰)
+// QuestionType, QuestionStatus, DelYn, SchoolLevel은 ENUM값으로 관리(DB는 check)
+public class QuestionDTO {
 
-	// ---- question_summary 뷰에서 추가되는 값 ----
-	private String writerName;     // writer_name   작성자 이름
-	private String schoolLevel;    // school_level  학교급 (NULL 가능)
-	private Integer grade;         // grade         학년 (NULL 가능)
-	private String subjectName;    // subject_name  과목 (NULL 가능)
-	private int answerCount;       // answer_count  답변 수
-	public int getqId() {
-		return qId;
+	// ----- question 테이블 컬럼 -----
+	private int questionId;                   // Q_ID           질문 번호 (AUTO_INCREMENT)
+	private String memberId;                  // MEMBER_ID      작성자 아이디
+	private Integer catId;                    // CAT_ID         학년·과목 (선택, 없으면 null)
+	private Integer lecId;                    // LEC_ID         관련 강의 (선택, 없으면 null)
+	private QuestionType questionType;        // Q_TYPE         STUDY / SITE
+	private String title;                     // TITLE          제목 (200자 이내)
+	private String content;                   // CONTENT        내용 (4000자 이내)
+	private int viewCount;                    // VIEW_COUNT     조회수
+	private QuestionStatus questionStatus;    // Q_STATUS       WAIT / ANSWERED
+	private YnType delYn;                     // DEL_YN         삭제 여부 Y / N
+	private LocalDateTime regDate;            // REG_DATE       등록일
+	private LocalDateTime modDate;            // MOD_DATE       수정일 (DB가 자동 갱신)
+
+	// ----- question_summary 뷰에서 더해지는 값 (JOIN) -----
+	private String writerName;                // WRITER_NAME    작성자 이름 (member.member_name)
+	private SchoolLevel schoolLevel;          // SCHOOL_LEVEL   학교급 (분류 없으면 null)
+	private Integer grade;                    // GRADE          학년 (분류 없으면 null)
+	private String subjectName;               // SUBJECT_NAME   과목 (분류 없으면 null)
+	private int answerCount;                  // ANSWER_COUNT   답변 수
+
+	public QuestionDTO() {
 	}
-	public void setqId(int qId) {
-		this.qId = qId;
+
+	public int getQuestionId() {
+		return questionId;
 	}
-	public String getUserId() {
-		return userId;
+
+	public void setQuestionId(int questionId) {
+		this.questionId = questionId;
 	}
-	public void setUserId(String userId) {
-		this.userId = userId;
+
+	public String getMemberId() {
+		return memberId;
 	}
+
+	public void setMemberId(String memberId) {
+		this.memberId = memberId;
+	}
+
 	public Integer getCatId() {
 		return catId;
 	}
+
 	public void setCatId(Integer catId) {
 		this.catId = catId;
 	}
+
 	public Integer getLecId() {
 		return lecId;
 	}
+
 	public void setLecId(Integer lecId) {
 		this.lecId = lecId;
 	}
-	public String getqType() {
-		return qType;
+
+	public QuestionType getQuestionType() {
+		return questionType;
 	}
-	public void setqType(String qType) {
-		this.qType = qType;
+
+	public void setQuestionType(QuestionType questionType) {
+		this.questionType = questionType;
 	}
+
 	public String getTitle() {
 		return title;
 	}
+
 	public void setTitle(String title) {
 		this.title = title;
 	}
+
 	public String getContent() {
 		return content;
 	}
+
 	public void setContent(String content) {
 		this.content = content;
 	}
+
 	public int getViewCount() {
 		return viewCount;
 	}
+
 	public void setViewCount(int viewCount) {
 		this.viewCount = viewCount;
 	}
-	public String getqStatus() {
-		return qStatus;
+
+	public QuestionStatus getQuestionStatus() {
+		return questionStatus;
 	}
-	public void setqStatus(String qStatus) {
-		this.qStatus = qStatus;
+
+	public void setQuestionStatus(QuestionStatus questionStatus) {
+		this.questionStatus = questionStatus;
 	}
-	public String getDelYn() {
+
+	public YnType getDelYn() {
 		return delYn;
 	}
-	public void setDelYn(String delYn) {
+
+	public void setDelYn(YnType delYn) {
 		this.delYn = delYn;
 	}
-	public Timestamp getRegDate() {
+
+	public LocalDateTime getRegDate() {
 		return regDate;
 	}
-	public void setRegDate(Timestamp regDate) {
+
+	public void setRegDate(LocalDateTime regDate) {
 		this.regDate = regDate;
 	}
-	public Timestamp getModDate() {
+
+	public LocalDateTime getModDate() {
 		return modDate;
 	}
-	public void setModDate(Timestamp modDate) {
+
+	public void setModDate(LocalDateTime modDate) {
 		this.modDate = modDate;
 	}
+
 	public String getWriterName() {
 		return writerName;
 	}
+
 	public void setWriterName(String writerName) {
 		this.writerName = writerName;
 	}
-	public String getSchoolLevel() {
+
+	public SchoolLevel getSchoolLevel() {
 		return schoolLevel;
 	}
-	public void setSchoolLevel(String schoolLevel) {
+
+	public void setSchoolLevel(SchoolLevel schoolLevel) {
 		this.schoolLevel = schoolLevel;
 	}
+
 	public Integer getGrade() {
 		return grade;
 	}
+
 	public void setGrade(Integer grade) {
 		this.grade = grade;
 	}
+
 	public String getSubjectName() {
 		return subjectName;
 	}
+
 	public void setSubjectName(String subjectName) {
 		this.subjectName = subjectName;
 	}
+
 	public int getAnswerCount() {
 		return answerCount;
 	}
+
 	public void setAnswerCount(int answerCount) {
 		this.answerCount = answerCount;
 	}
 
+
+	@Override
+	public String toString() {
+		return "QuestionDTO [questionId=" + questionId + ", memberId=" + memberId + ", catId=" + catId
+				+ ", lecId=" + lecId + ", questionType=" + questionType + ", title=" + title
+				+ ", viewCount=" + viewCount + ", questionStatus=" + questionStatus + ", delYn=" + delYn
+				+ ", regDate=" + regDate + ", writerName=" + writerName + ", answerCount=" + answerCount + "]";
+	}
 }

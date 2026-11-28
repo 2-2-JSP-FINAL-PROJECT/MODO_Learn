@@ -1,222 +1,279 @@
 package com.modo.qna.service;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 
+import com.modo.common.exception.ModoException;
 import com.modo.common.util.DBUtil;
-import com.modo.qna.dao.QnaDao;
-import com.modo.qna.dto.AnswerDto;
-import com.modo.qna.dto.QuestionDto;
+import com.modo.member.dto.LoginUser;
+import com.modo.qna.dao.QnaDAO;
+import com.modo.qna.dto.AnswerDTO;
+import com.modo.qna.dto.QuestionDTO;
+import com.modo.qna.dto.QuestionStatus;
+import com.modo.qna.dto.QuestionType;
 
-/*
- * Q&A 업무 규칙 담당
- *  - Dao 는 SQL 만 실행하고, "해도 되는지" 판단은 여기서 한다.
- *  - 규칙 위반은 예외로 알린다. Controller 가 받아서 화면에 안내한다.
- *      IllegalArgumentException : 입력값이 잘못됨   (400)
- *      SecurityException        : 권한이 없음       (403)
- */
+// 성환작성
+// Q&A 업무 규칙 (DAO는 SQL만 실행하고, "해도 되는지" 판단은 여기서)
+//  - 질문 : 로그인 회원이 작성, 본인만 수정(답변 달리기 전까지), 본인 또는 관리자가 삭제
+//  - 답변 : 관리자만 등록·삭제
 public class QnaService {
 
-	private QnaDao dao = new QnaDao();
+	private final QnaDAO qnaDAO = new QnaDAO();
 
-	// DB 컬럼 크기 (조장 SQL 기준)
-	private static final int TITLE_MAX = 200;         // title   VARCHAR2(200 CHAR) : 글자 수
-	private static final int CONTENT_MAX_BYTE = 4000; // content VARCHAR2(4000)     : 바이트 수 (한글 1자 = 3바이트)
+	private static final int TITLE_MAX = 200;      // title   VARCHAR(200) : 글자 수
+	private static final int CONTENT_MAX = 4000;   // content VARCHAR(4000) : 글자 수
 
-	// ---------------------------------------------------------------------
-	// 읽기
-	// ---------------------------------------------------------------------
+	// ===== 조회 =====
 
-	// 목록
-	public List<QuestionDto> getList() throws SQLException {
-		return dao.findList();
+	// 질문 목록
+	public List<QuestionDTO> getList() {
+		try (Connection conn = DBUtil.getConnection()) {
+			return qnaDAO.findList(conn);
+		} catch (SQLException e) {
+			throw new ModoException("질문 목록 조회 중 오류가 발생했습니다.", e);
+		}
 	}
 
-	// 상세 : 조회수 +1 → 질문 가져오기 (순서를 바꾸면 화면 조회수가 1 적게 보임)
-	public QuestionDto getDetail(int qId) throws SQLException {
-		dao.increaseViewCount(qId);
-		return dao.findById(qId);
+	// 질문 상세 : 조회수 +1 -> 질문 가져오기 (순서를 바꾸면 화면 조회수가 1 적게 보임)
+	public QuestionDTO getDetail(int questionId) {
+		try (Connection conn = DBUtil.getConnection()) {
+			// 바뀐 줄이 0개면 없거나 삭제된 글
+			if (qnaDAO.increaseViewCount(conn, questionId) == 0) {
+				throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+			}
+			return qnaDAO.findById(conn, questionId);
+
+		} catch (SQLException e) {
+			throw new ModoException("질문 조회 중 오류가 발생했습니다.", e);
+		}
+	}
+
+	// 질문 가져오기 (조회수는 올리지 않음 -> 답변 등록 오류 후 상세 화면을 다시 보여 줄 때)
+	public QuestionDTO getQuestion(int questionId) {
+		try (Connection conn = DBUtil.getConnection()) {
+			QuestionDTO question = qnaDAO.findById(conn, questionId);
+			if (question == null) {
+				throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+			}
+			return question;
+
+		} catch (SQLException e) {
+			throw new ModoException("질문 조회 중 오류가 발생했습니다.", e);
+		}
 	}
 
 	// 상세 화면의 답변 목록
-	public List<AnswerDto> getAnswers(int qId) throws SQLException {
-		return dao.findAnswers(qId);
+	public List<AnswerDTO> getAnswers(int questionId) {
+		try (Connection conn = DBUtil.getConnection()) {
+			return qnaDAO.findAnswers(conn, questionId);
+		} catch (SQLException e) {
+			throw new ModoException("답변 목록 조회 중 오류가 발생했습니다.", e);
+		}
 	}
 
 	// 수정 화면에 채울 질문 (조회수는 올리지 않음 + 본인 글인지 확인)
-	public QuestionDto getForEdit(int qId, String loginId) throws SQLException {
-		QuestionDto q = dao.findById(qId);
-		checkCanEdit(q, loginId);
-		return q;
+	public QuestionDTO getForEdit(LoginUser loginUser, int questionId) {
+		requireLogin(loginUser);
+
+		try (Connection conn = DBUtil.getConnection()) {
+			QuestionDTO question = qnaDAO.findById(conn, questionId);
+			checkCanEdit(question, loginUser);
+			return question;
+
+		} catch (SQLException e) {
+			throw new ModoException("질문 조회 중 오류가 발생했습니다.", e);
+		}
 	}
 
-	// ---------------------------------------------------------------------
-	// 질문 쓰기 · 수정 · 삭제
-	// ---------------------------------------------------------------------
+	// ===== 질문 쓰기·수정·삭제 =====
 
-	// 질문 등록 → 새 질문 번호를 돌려줌
-	public int write(QuestionDto q, String loginId) throws SQLException {
-		requireLogin(loginId);
-		validateQuestion(q);
-		q.setUserId(loginId);          // 작성자는 화면 값이 아니라 로그인 정보로 정한다 (조작 방지)
-		return dao.insertQuestion(q);
+	// 질문 등록 -> 새 질문 번호 반환
+	public int write(LoginUser loginUser, QuestionDTO dto) {
+		requireLogin(loginUser);
+		validateQuestion(dto);
+
+		// 작성자는 화면 값이 아니라 로그인 정보로 (조작 방지)
+		dto.setMemberId(loginUser.getMemberId());
+
+		try (Connection conn = DBUtil.getConnection()) {
+			checkCategoryAndLecture(conn, dto);
+			return qnaDAO.insertQuestion(conn, dto);
+
+		} catch (SQLException e) {
+			throw new ModoException("질문 등록 처리 중 오류가 발생했습니다.", e);
+		}
 	}
 
 	// 질문 수정
-	public void update(QuestionDto q, String loginId) throws SQLException {
-		QuestionDto origin = dao.findById(q.getqId());
-		checkCanEdit(origin, loginId);
-		validateQuestion(q);
-		dao.updateQuestion(q);
+	public void update(LoginUser loginUser, QuestionDTO dto) {
+		requireLogin(loginUser);
+		validateQuestion(dto);
+
+		try (Connection conn = DBUtil.getConnection()) {
+			QuestionDTO origin = qnaDAO.findById(conn, dto.getQuestionId());
+			checkCanEdit(origin, loginUser);
+			checkCategoryAndLecture(conn, dto);
+
+			if (qnaDAO.updateQuestion(conn, dto) == 0) {
+				throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+			}
+
+		} catch (SQLException e) {
+			throw new ModoException("질문 수정 처리 중 오류가 발생했습니다.", e);
+		}
 	}
 
 	// 질문 삭제 : 작성자 본인 또는 관리자
-	public void delete(int qId, String loginId, boolean isAdmin) throws SQLException {
-		requireLogin(loginId);
-		QuestionDto q = dao.findById(qId);
-		if (q == null) {
-			throw new IllegalArgumentException("이미 삭제되었거나 없는 질문입니다.");
-		}
-		if (!isAdmin && !q.getUserId().equals(loginId)) {
-			throw new SecurityException("본인이 쓴 질문만 삭제할 수 있습니다.");
-		}
-		dao.deleteQuestion(qId);
-	}
+	public void delete(LoginUser loginUser, int questionId) {
+		requireLogin(loginUser);
 
-	// ---------------------------------------------------------------------
-	// 관리자 답변
-	// ---------------------------------------------------------------------
-
-	// 답변 등록 : 관리자만. 답변 저장 + 질문 상태 ANSWERED 를 하나로 묶는다 (트랜잭션)
-	public void writeAnswer(int qId, String content, String loginId, boolean isAdmin) throws SQLException {
-		if (!isAdmin) {
-			throw new SecurityException("관리자만 답변할 수 있습니다.");
-		}
-		content = trim(content);
-		if (content.isEmpty()) {
-			throw new IllegalArgumentException("답변 내용을 입력해 주세요.");
-		}
-		if (byteLength(content) > CONTENT_MAX_BYTE) {
-			throw new IllegalArgumentException("답변이 너무 깁니다. (한글 약 1,300자까지)");
-		}
-		if (dao.findById(qId) == null) {
-			throw new IllegalArgumentException("이미 삭제되었거나 없는 질문입니다.");
-		}
-
-		AnswerDto a = new AnswerDto();
-		a.setqId(qId);
-		a.setUserId(loginId);
-		a.setContent(content);
-
-		Connection conn = null;
-		try {
-			conn = DBUtil.getConnection();
-			conn.setAutoCommit(false);              // ① 자동 저장 끄기
-
-			dao.insertAnswer(conn, a);              // ② 답변 저장
-			dao.updateStatus(conn, qId, "ANSWERED"); // ③ 질문 상태 변경
-
-			conn.commit();                          // ④ 둘 다 성공 → 한 번에 저장
-		} catch (SQLException e) {
-			DBUtil.rollback(conn);                  // 하나라도 실패 → 둘 다 취소
-			throw e;
-		} finally {
-			DBUtil.close(conn);
-		}
-	}
-
-	// 답변 삭제 : 관리자만. 남은 답변이 0개가 되면 질문 상태를 다시 WAIT 로
-	// → 어느 질문의 답변이었는지(질문 번호)를 돌려줌 (삭제 후 그 질문 상세로 돌아가려고)
-	public int deleteAnswer(int aId, boolean isAdmin) throws SQLException {
-		if (!isAdmin) {
-			throw new SecurityException("관리자만 답변을 삭제할 수 있습니다.");
-		}
-		AnswerDto a = dao.findAnswerById(aId);
-		if (a == null) {
-			throw new IllegalArgumentException("이미 삭제되었거나 없는 답변입니다.");
-		}
-		int qId = a.getqId();
-
-		Connection conn = null;
-		try {
-			conn = DBUtil.getConnection();
-			conn.setAutoCommit(false);
-
-			dao.deleteAnswer(conn, aId);
-			if (dao.countAnswers(conn, qId) == 0) {
-				dao.updateStatus(conn, qId, "WAIT");
+		try (Connection conn = DBUtil.getConnection()) {
+			QuestionDTO question = qnaDAO.findById(conn, questionId);
+			if (question == null) {
+				throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+			}
+			if (!loginUser.isAdmin() && !question.getMemberId().equals(loginUser.getMemberId())) {
+				throw new ModoException("본인이 쓴 질문만 삭제할 수 있습니다.");
 			}
 
-			conn.commit();
+			qnaDAO.deleteQuestion(conn, questionId);
+
 		} catch (SQLException e) {
-			DBUtil.rollback(conn);
-			throw e;
-		} finally {
-			DBUtil.close(conn);
-		}
-		return qId;
-	}
-
-	// ---------------------------------------------------------------------
-	// 검사용 도우미 메서드 (이 클래스 안에서만 씀)
-	// ---------------------------------------------------------------------
-
-	private void requireLogin(String loginId) {
-		if (loginId == null) {
-			throw new SecurityException("로그인 후 이용할 수 있습니다.");
+			throw new ModoException("질문 삭제 처리 중 오류가 발생했습니다.", e);
 		}
 	}
 
-	// 수정 가능한지 : 로그인 + 본인 글 + 아직 답변이 안 달림
-	private void checkCanEdit(QuestionDto q, String loginId) {
-		requireLogin(loginId);
-		if (q == null) {
-			throw new IllegalArgumentException("이미 삭제되었거나 없는 질문입니다.");
+	// ===== 관리자 답변 =====
+
+	// 답변 등록 : 관리자만. 답변 저장 + 질문 상태 ANSWERED를 하나로 묶음 (트랜잭션)
+	public void writeAnswer(LoginUser loginUser, int questionId, String content) {
+		checkAdmin(loginUser, "관리자만 답변할 수 있습니다.");
+
+		if (content == null) {
+			throw new ModoException("답변 내용을 입력해주세요.");
 		}
-		if (!q.getUserId().equals(loginId)) {
-			throw new SecurityException("본인이 쓴 질문만 수정할 수 있습니다.");
+		if (content.length() > CONTENT_MAX) {
+			throw new ModoException("답변은 " + CONTENT_MAX + "자까지 쓸 수 있습니다.");
 		}
-		if ("ANSWERED".equals(q.getqStatus())) {
-			throw new IllegalArgumentException("답변이 달린 질문은 수정할 수 없습니다.");
+
+		AnswerDTO answer = new AnswerDTO();
+		answer.setQuestionId(questionId);
+		answer.setMemberId(loginUser.getMemberId());   // 작성자는 로그인한 관리자
+		answer.setContent(content);
+
+		try (Connection conn = DBUtil.getConnection()) {
+			conn.setAutoCommit(false);   // ① 자동 저장 끄기 -> commit 할 때 한 번에 저장
+
+			try {
+				if (qnaDAO.findById(conn, questionId) == null) {
+					throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+				}
+				qnaDAO.insertAnswer(conn, answer);                               // ② 답변 저장
+				qnaDAO.updateStatus(conn, questionId, QuestionStatus.ANSWERED);  // ③ 질문 상태 변경
+
+				conn.commit();   // ④ 둘 다 성공 -> 한 번에 저장
+
+			} catch (SQLException | RuntimeException e) {
+				DBUtil.rollback(conn);   // 하나라도 실패 -> 둘 다 취소
+				throw e;
+			}
+
+		} catch (SQLException e) {
+			throw new ModoException("답변 등록 처리 중 오류가 발생했습니다.", e);
 		}
 	}
 
-	// 질문 입력값 검사 (DB 제약조건에 걸리기 전에 먼저 막는다)
-	private void validateQuestion(QuestionDto q) {
-		q.setTitle(trim(q.getTitle()));
-		q.setContent(trim(q.getContent()));
+	// 답변 삭제 : 관리자만. 남은 답변이 0개가 되면 질문 상태를 다시 WAIT로
+	// -> 어느 질문의 답변이었는지(질문 번호)를 돌려줌 (삭제 후 그 질문 상세로 돌아가려고)
+	public int deleteAnswer(LoginUser loginUser, int answerId) {
+		checkAdmin(loginUser, "관리자만 답변을 삭제할 수 있습니다.");
 
-		if (!"STUDY".equals(q.getqType()) && !"SITE".equals(q.getqType())) {
-			throw new IllegalArgumentException("질문 구분을 선택해 주세요.");
-		}
-		if (q.getTitle().isEmpty()) {
-			throw new IllegalArgumentException("제목을 입력해 주세요.");
-		}
-		if (q.getTitle().length() > TITLE_MAX) {
-			throw new IllegalArgumentException("제목은 " + TITLE_MAX + "자까지 쓸 수 있습니다.");
-		}
-		if (q.getContent().isEmpty()) {
-			throw new IllegalArgumentException("내용을 입력해 주세요.");
-		}
-		if (byteLength(q.getContent()) > CONTENT_MAX_BYTE) {
-			throw new IllegalArgumentException("내용이 너무 깁니다. (한글 약 1,300자까지)");
-		}
-		// 이용 문의(SITE)는 학년·과목·강의와 관계없으니 비운다
-		if ("SITE".equals(q.getqType())) {
-			q.setCatId(null);
-			q.setLecId(null);
+		try (Connection conn = DBUtil.getConnection()) {
+			conn.setAutoCommit(false);
+
+			try {
+				AnswerDTO answer = qnaDAO.findAnswerById(conn, answerId);
+				if (answer == null) {
+					throw new ModoException("이미 삭제되었거나 없는 답변입니다.");
+				}
+				int questionId = answer.getQuestionId();
+
+				qnaDAO.deleteAnswer(conn, answerId);
+				if (qnaDAO.countAnswers(conn, questionId) == 0) {
+					qnaDAO.updateStatus(conn, questionId, QuestionStatus.WAIT);
+				}
+
+				conn.commit();
+				return questionId;
+
+			} catch (SQLException | RuntimeException e) {
+				DBUtil.rollback(conn);
+				throw e;
+			}
+
+		} catch (SQLException e) {
+			throw new ModoException("답변 삭제 처리 중 오류가 발생했습니다.", e);
 		}
 	}
 
-	// null 이면 "" 로, 앞뒤 공백 제거
-	private String trim(String s) {
-		return s == null ? "" : s.trim();
+	// ===== 검사용 도우미 (이 클래스 안에서만 씀) =====
+
+	private void requireLogin(LoginUser loginUser) {
+		if (loginUser == null) {
+			throw new ModoException("로그인 후 이용할 수 있습니다.");
+		}
 	}
 
-	// 오라클에 저장될 때의 바이트 수 (UTF-8 기준)
-	private int byteLength(String s) {
-		return s.getBytes(StandardCharsets.UTF_8).length;
+	private void checkAdmin(LoginUser loginUser, String message) {
+		if (loginUser == null || !loginUser.isAdmin()) {
+			throw new ModoException(message);
+		}
+	}
+
+	// 수정 가능한지 : 있는 글 + 본인 글 + 아직 답변이 안 달림
+	private void checkCanEdit(QuestionDTO question, LoginUser loginUser) {
+		if (question == null) {
+			throw new ModoException("이미 삭제되었거나 없는 질문입니다.");
+		}
+		if (!question.getMemberId().equals(loginUser.getMemberId())) {
+			throw new ModoException("본인이 쓴 질문만 수정할 수 있습니다.");
+		}
+		if (question.getQuestionStatus() == QuestionStatus.ANSWERED) {
+			throw new ModoException("답변이 달린 질문은 수정할 수 없습니다.");
+		}
+	}
+
+	// 질문 입력값 검사 (DB 제약조건에 걸리기 전에 먼저 막음)
+	// title, content는 Controller에서 trim -> 빈 값이면 null
+	private void validateQuestion(QuestionDTO dto) {
+		String title = dto.getTitle();
+		String content = dto.getContent();
+
+		if (dto.getQuestionType() == null) {
+			throw new ModoException("질문 구분을 선택해주세요.");
+		}
+		if (title == null || title.length() > TITLE_MAX) {
+			throw new ModoException("제목을 입력해주세요. (" + TITLE_MAX + "자 이내)");
+		}
+		if (content == null || content.length() > CONTENT_MAX) {
+			throw new ModoException("내용을 입력해주세요. (" + CONTENT_MAX + "자 이내)");
+		}
+
+		// 이용 문의(SITE)는 학년·과목·강의와 관계없으니 비움
+		if (dto.getQuestionType() == QuestionType.SITE) {
+			dto.setCatId(null);
+			dto.setLecId(null);
+		}
+	}
+
+	// 고른 분류·강의가 실제로 있는지 (없는 번호면 FK 오류 대신 안내 문구)
+	private void checkCategoryAndLecture(Connection conn, QuestionDTO dto) throws SQLException {
+		if (dto.getCatId() != null && !qnaDAO.categoryExists(conn, dto.getCatId())) {
+			throw new ModoException("없는 학년·과목입니다.");
+		}
+		if (dto.getLecId() != null && !qnaDAO.lectureExists(conn, dto.getLecId())) {
+			throw new ModoException("없는 강의입니다.");
+		}
 	}
 }

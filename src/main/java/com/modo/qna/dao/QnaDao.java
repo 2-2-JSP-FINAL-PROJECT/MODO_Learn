@@ -4,275 +4,299 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.modo.common.util.DBUtil;
-import com.modo.qna.dto.AnswerDto;
-import com.modo.qna.dto.QuestionDto;
+import com.modo.common.enums.SchoolLevel;
+import com.modo.common.enums.YnType;
+import com.modo.qna.dto.AnswerDTO;
+import com.modo.qna.dto.QuestionDTO;
+import com.modo.qna.dto.QuestionStatus;
+import com.modo.qna.dto.QuestionType;
 
-public class QnaDao {
+// 성환작성
+// Q&A DB 담당 (질문 + 답변 / Connection은 Service가 열고 닫음)
+public class QnaDAO {
 
-	public List<QuestionDto> findList() throws SQLException {
+	// 답변 조회에 같이 쓰는 SELECT (작성자 이름까지 JOIN)
+	private static final String SELECT_ANSWER =
+			"SELECT a.*, m.member_name AS writer_name "
+			+ "FROM answer a "
+			+ "JOIN member m ON m.member_id = a.member_id ";
+
+	// ===== 질문 =====
+
+	// 질문 목록 (question_summary 뷰 : 삭제 안 된 질문 + 작성자 이름 + 학년·과목 + 답변 수)
+	public List<QuestionDTO> findList(Connection conn) throws SQLException {
+
 		String sql = "SELECT * FROM question_summary ORDER BY q_id DESC";
-		List<QuestionDto> list = new ArrayList<>();
 
-		try (Connection conn = DBUtil.getConnection();
-				PreparedStatement ps = conn.prepareStatement(sql);
+		List<QuestionDTO> list = new ArrayList<>();
+
+		try (PreparedStatement ps = conn.prepareStatement(sql);
 				ResultSet rs = ps.executeQuery()) {
-
-			while (rs.next()) { // 결과표의 다음 줄로 이동 (없으면 false)
-				QuestionDto q = new QuestionDto();
-				// question 테이블 컬럼
-				q.setqId(rs.getInt("q_id"));
-				q.setUserId(rs.getString("user_id"));
-				q.setCatId(rs.getObject("cat_id", Integer.class)); // NULL 가능
-				q.setLecId(rs.getObject("lec_id", Integer.class)); // NULL 가능
-				q.setqType(rs.getString("q_type"));
-				q.setTitle(rs.getString("title"));
-				q.setContent(rs.getString("content"));
-				q.setViewCount(rs.getInt("view_count"));
-				q.setqStatus(rs.getString("q_status"));
-				q.setDelYn(rs.getString("del_yn"));
-				q.setRegDate(rs.getTimestamp("reg_date"));
-				q.setModDate(rs.getTimestamp("mod_date"));
-
-				// question_summary 뷰에서 추가된 컬럼
-				q.setWriterName(rs.getString("writer_name"));
-				q.setSchoolLevel(rs.getString("school_level"));
-				q.setGrade(rs.getObject("grade", Integer.class)); // NULL 가능
-				q.setSubjectName(rs.getString("subject_name"));
-				q.setAnswerCount(rs.getInt("answer_count"));
-
-				list.add(q);
-			} // while
+			while (rs.next()) {
+				list.add(questionDtoMapper(rs));
+			}
 		}
 		return list;
-	}// findList
+	}
 
-	public QuestionDto findById(int qId) throws SQLException {
+	// 질문 1개 조회 (뷰가 삭제된 글을 빼 주므로 없거나 삭제된 글이면 null)
+	public QuestionDTO findById(Connection conn, int questionId) throws SQLException {
+
 		String sql = "SELECT * FROM question_summary WHERE q_id = ?";
-		QuestionDto q = null; // 못 찾으면 null을 돌려줌
 
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-
-			// TODO ① 첫 번째 ? 에 qId 넣기
-			ps.setInt(1, qId);
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, questionId);
 			try (ResultSet rs = ps.executeQuery()) {
-				if (rs.next()) { // 결과가 있으면 (최대 1줄)
-					q = new QuestionDto();
-					// TODO ② findList와 똑같이 17개 채우기
-					q.setqId(rs.getInt("q_id"));
-					q.setUserId(rs.getString("user_id"));
-					q.setCatId(rs.getObject("cat_id", Integer.class)); // NULL 가능
-					q.setLecId(rs.getObject("lec_id", Integer.class)); // NULL 가능
-					q.setqType(rs.getString("q_type"));
-					q.setTitle(rs.getString("title"));
-					q.setContent(rs.getString("content"));
-					q.setViewCount(rs.getInt("view_count"));
-					q.setqStatus(rs.getString("q_status"));
-					q.setDelYn(rs.getString("del_yn"));
-					q.setRegDate(rs.getTimestamp("reg_date"));
-					q.setModDate(rs.getTimestamp("mod_date"));
-
-					// question_summary 뷰에서 추가된 컬럼
-					q.setWriterName(rs.getString("writer_name"));
-					q.setSchoolLevel(rs.getString("school_level"));
-					q.setGrade(rs.getObject("grade", Integer.class)); // NULL 가능
-					q.setSubjectName(rs.getString("subject_name"));
-					q.setAnswerCount(rs.getInt("answer_count"));
-				} // if
-			} // try
-		} // try
-
-		return q;
-	}// findbyid
-
-	public int increaseViewCount(int qId) throws SQLException {
-		String sql = "UPDATE question SET view_count=view_count+1 WHERE q_id= ?  AND del_yn='N'";
-
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-
-			ps.setInt(1, qId);
-			return ps.executeUpdate(); // 실제로 바뀐 줄 수를 돌려줌
-		}
-	}// increaseView
-
-	public List<AnswerDto> findAnswers(int qId) throws SQLException {
-		String sql="SELECT a.*, u.user_name AS writer_name\r\n"
-				+ "  FROM answer a\r\n"
-				+ "  JOIN users u ON u.user_id = a.user_id\r\n"
-				+ " WHERE a.q_id = ?\r\n"
-				+ "   AND a.del_yn = 'N'\r\n"
-				+ " ORDER BY a.a_id";
-		List<AnswerDto> list = new ArrayList<>();
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, qId);
-			try (ResultSet rs = ps.executeQuery())
-			{
-				while(rs.next())
-				{
-					AnswerDto a= new AnswerDto();
-					a.setqId(rs.getInt("q_id"));
-					a.setaId(rs.getInt("a_id"));
-					a.setUserId(rs.getString("user_id"));
-					a.setContent(rs.getString("content"));
-					a.setDelYn(rs.getString("del_yn"));
-					a.setRegDate(rs.getTimestamp("reg_date"));
-					a.setModDate(rs.getTimestamp("mod_date"));
-					a.setWriterName(rs.getString("writer_name"));
-					list.add(a);
+				if (rs.next()) {
+					return questionDtoMapper(rs);
 				}
+				return null;
 			}
-			return list;
 		}
+	}
 
-	}//findanswer
+	// 조회수 +1 (바뀐 줄 수 반환 -> 0이면 없는 글)
+	public int increaseViewCount(Connection conn, int questionId) throws SQLException {
 
-	// =====================================================================
-	// 여기부터 쓰기(INSERT / UPDATE) 메서드
-	//  - 오라클 : 새 번호는 seq_테이블.NEXTVAL, mod_date 는 트리거가 자동 갱신
-	//  - 삭제는 진짜 DELETE 가 아니라 del_yn = 'Y' 로 바꾸는 소프트 삭제
-	// =====================================================================
+		String sql = "UPDATE question SET view_count = view_count + 1 WHERE q_id = ? AND del_yn = 'N'";
 
-	// 질문 등록 → 새로 만들어진 질문 번호를 돌려줌 (등록 후 상세 화면으로 보내려고)
-	public int insertQuestion(QuestionDto q) throws SQLException {
-		String seqSql = "SELECT seq_question.NEXTVAL FROM dual";
-		String sql = "INSERT INTO question (q_id, user_id, cat_id, lec_id, q_type, title, content) "
-				+ "VALUES (?, ?, ?, ?, ?, ?, ?)";
-
-		try (Connection conn = DBUtil.getConnection()) {
-			// ① 시퀀스에서 새 번호를 먼저 받는다
-			int newId;
-			try (PreparedStatement ps = conn.prepareStatement(seqSql);
-					ResultSet rs = ps.executeQuery()) {
-				rs.next();
-				newId = rs.getInt(1);
-			}
-			// ② 그 번호로 INSERT
-			try (PreparedStatement ps = conn.prepareStatement(sql)) {
-				ps.setInt(1, newId);
-				ps.setString(2, q.getUserId());
-				setNullableInt(ps, 3, q.getCatId());   // 선택 안 하면 NULL
-				setNullableInt(ps, 4, q.getLecId());   // 선택 안 하면 NULL
-				ps.setString(5, q.getqType());
-				ps.setString(6, q.getTitle());
-				ps.setString(7, q.getContent());
-				ps.executeUpdate();
-			}
-			return newId;
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, questionId);
+			return ps.executeUpdate();
 		}
-	}// insertQuestion
+	}
 
-	// 질문 수정 (작성자 본인 확인은 Service 에서 먼저 함)
-	public int updateQuestion(QuestionDto q) throws SQLException {
+	// 질문 등록 -> 새로 생긴 질문 번호 반환 (VIEW_COUNT, Q_STATUS, DEL_YN, REG_DATE는 DB 기본값)
+	public int insertQuestion(Connection conn, QuestionDTO dto) throws SQLException {
+
+		String sql = "INSERT INTO question (member_id, cat_id, lec_id, q_type, title, content) "
+				+ "VALUES (?, ?, ?, ?, ?, ?)";
+
+		// RETURN_GENERATED_KEYS : AUTO_INCREMENT로 만들어진 번호를 돌려받기
+		try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+			ps.setString(1, dto.getMemberId());
+			setNullableInt(ps, 2, dto.getCatId());   // 선택 안 하면 NULL
+			setNullableInt(ps, 3, dto.getLecId());   // 선택 안 하면 NULL
+			ps.setString(4, dto.getQuestionType().name());   // ENUM -> 문자열
+			ps.setString(5, dto.getTitle());
+			ps.setString(6, dto.getContent());
+			ps.executeUpdate();
+
+			try (ResultSet keys = ps.getGeneratedKeys()) {
+				keys.next();
+				return keys.getInt(1);
+			}
+		}
+	}
+
+	// 질문 수정 (작성자 본인 확인은 Service에서 먼저 함, MOD_DATE는 DB가 자동 갱신)
+	public int updateQuestion(Connection conn, QuestionDTO dto) throws SQLException {
+
 		String sql = "UPDATE question SET cat_id = ?, lec_id = ?, q_type = ?, title = ?, content = ? "
 				+ "WHERE q_id = ? AND del_yn = 'N'";
 
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-			setNullableInt(ps, 1, q.getCatId());
-			setNullableInt(ps, 2, q.getLecId());
-			ps.setString(3, q.getqType());
-			ps.setString(4, q.getTitle());
-			ps.setString(5, q.getContent());
-			ps.setInt(6, q.getqId());
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			setNullableInt(ps, 1, dto.getCatId());
+			setNullableInt(ps, 2, dto.getLecId());
+			ps.setString(3, dto.getQuestionType().name());
+			ps.setString(4, dto.getTitle());
+			ps.setString(5, dto.getContent());
+			ps.setInt(6, dto.getQuestionId());
 			return ps.executeUpdate();
 		}
-	}// updateQuestion
+	}
 
-	// 질문 삭제 (소프트 삭제 : 데이터는 남기고 del_yn 만 'Y')
-	public int deleteQuestion(int qId) throws SQLException {
+	// 질문 삭제 (진짜 지우지 않고 DEL_YN = 'Y'로 바꾸는 소프트 삭제)
+	public int deleteQuestion(Connection conn, int questionId) throws SQLException {
+
 		String sql = "UPDATE question SET del_yn = 'Y' WHERE q_id = ? AND del_yn = 'N'";
 
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, qId);
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, questionId);
 			return ps.executeUpdate();
 		}
-	}// deleteQuestion
+	}
 
-	// 답변 하나 찾기 (답변 삭제할 때 어느 질문의 답변인지 알아내려고)
-	public AnswerDto findAnswerById(int aId) throws SQLException {
-		String sql = "SELECT * FROM answer WHERE a_id = ? AND del_yn = 'N'";
+	// 질문 상태 바꾸기 (WAIT / ANSWERED)
+	public int updateStatus(Connection conn, int questionId, QuestionStatus status) throws SQLException {
 
-		try (Connection conn = DBUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, aId);
-			try (ResultSet rs = ps.executeQuery()) {
-				if (!rs.next()) {
-					return null;
-				}
-				AnswerDto a = new AnswerDto();
-				a.setaId(rs.getInt("a_id"));
-				a.setqId(rs.getInt("q_id"));
-				a.setUserId(rs.getString("user_id"));
-				a.setContent(rs.getString("content"));
-				a.setDelYn(rs.getString("del_yn"));
-				a.setRegDate(rs.getTimestamp("reg_date"));
-				a.setModDate(rs.getTimestamp("mod_date"));
-				return a;
-			}
-		}
-	}// findAnswerById
-
-	// ---------------------------------------------------------------------
-	// 아래 3개는 Service 가 넘겨준 Connection 을 그대로 쓴다.
-	// 답변 저장 + 질문 상태 변경을 "둘 다 성공 또는 둘 다 취소" 로 묶기 위해서
-	// (그래서 여기서는 conn 을 닫지 않는다. 닫는 건 Service 가 함)
-	// ---------------------------------------------------------------------
-
-	// 답변 등록
-	public int insertAnswer(Connection conn, AnswerDto a) throws SQLException {
-		String sql = "INSERT INTO answer (a_id, q_id, user_id, content) "
-				+ "VALUES (seq_answer.NEXTVAL, ?, ?, ?)";
+		String sql = "UPDATE question SET q_status = ? WHERE q_id = ?";
 
 		try (PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, a.getqId());
-			ps.setString(2, a.getUserId());
-			ps.setString(3, a.getContent());
+			ps.setString(1, status.name());
+			ps.setInt(2, questionId);
 			return ps.executeUpdate();
 		}
-	}// insertAnswer
+	}
+
+	// 고른 학년·과목 분류가 있는지 (없는 번호면 FK 오류가 나기 전에 막기)
+	public boolean categoryExists(Connection conn, int catId) throws SQLException {
+
+		String sql = "SELECT COUNT(*) FROM category WHERE cat_id = ? AND del_yn = 'N'";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, catId);
+			try (ResultSet rs = ps.executeQuery()) {
+				rs.next();
+				return rs.getInt(1) > 0;
+			}
+		}
+	}
+
+	// 고른 강의가 있는지
+	public boolean lectureExists(Connection conn, int lecId) throws SQLException {
+
+		String sql = "SELECT COUNT(*) FROM lecture WHERE lec_id = ? AND del_yn = 'N'";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, lecId);
+			try (ResultSet rs = ps.executeQuery()) {
+				rs.next();
+				return rs.getInt(1) > 0;
+			}
+		}
+	}
+
+	// ===== 답변 =====
+
+	// 질문 하나에 달린 답변 목록 (먼저 쓴 순서)
+	public List<AnswerDTO> findAnswers(Connection conn, int questionId) throws SQLException {
+
+		String sql = SELECT_ANSWER + "WHERE a.q_id = ? AND a.del_yn = 'N' ORDER BY a.a_id";
+
+		List<AnswerDTO> list = new ArrayList<>();
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, questionId);
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					list.add(answerDtoMapper(rs));
+				}
+			}
+		}
+		return list;
+	}
+
+	// 답변 1개 조회 (답변 삭제할 때 어느 질문의 답변인지 알아내려고)
+	public AnswerDTO findAnswerById(Connection conn, int answerId) throws SQLException {
+
+		String sql = SELECT_ANSWER + "WHERE a.a_id = ? AND a.del_yn = 'N'";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, answerId);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return answerDtoMapper(rs);
+				}
+				return null;
+			}
+		}
+	}
+
+	// 답변 등록 (DEL_YN, REG_DATE는 DB 기본값)
+	public int insertAnswer(Connection conn, AnswerDTO dto) throws SQLException {
+
+		String sql = "INSERT INTO answer (q_id, member_id, content) VALUES (?, ?, ?)";
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+			ps.setInt(1, dto.getQuestionId());
+			ps.setString(2, dto.getMemberId());
+			ps.setString(3, dto.getContent());
+			return ps.executeUpdate();
+		}
+	}
 
 	// 답변 삭제 (소프트 삭제)
-	public int deleteAnswer(Connection conn, int aId) throws SQLException {
+	public int deleteAnswer(Connection conn, int answerId) throws SQLException {
+
 		String sql = "UPDATE answer SET del_yn = 'Y' WHERE a_id = ? AND del_yn = 'N'";
 
 		try (PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, aId);
+			ps.setInt(1, answerId);
 			return ps.executeUpdate();
 		}
-	}// deleteAnswer
+	}
 
 	// 남아 있는 (삭제 안 된) 답변 수
-	public int countAnswers(Connection conn, int qId) throws SQLException {
+	public int countAnswers(Connection conn, int questionId) throws SQLException {
+
 		String sql = "SELECT COUNT(*) FROM answer WHERE q_id = ? AND del_yn = 'N'";
 
 		try (PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setInt(1, qId);
+			ps.setInt(1, questionId);
 			try (ResultSet rs = ps.executeQuery()) {
 				rs.next();
 				return rs.getInt(1);
 			}
 		}
-	}// countAnswers
+	}
 
-	// 질문 상태 바꾸기 : 'WAIT' 또는 'ANSWERED'
-	public int updateStatus(Connection conn, int qId, String status) throws SQLException {
-		String sql = "UPDATE question SET q_status = ? WHERE q_id = ?";
+	// ===== 도우미 =====
 
-		try (PreparedStatement ps = conn.prepareStatement(sql)) {
-			ps.setString(1, status);
-			ps.setInt(2, qId);
-			return ps.executeUpdate();
-		}
-	}// updateStatus
-
-	// Integer 값이 null 이면 DB 에 NULL, 아니면 숫자를 넣는다
+	// Integer 값이 null이면 DB에 NULL, 아니면 숫자를 넣음
 	private void setNullableInt(PreparedStatement ps, int index, Integer value) throws SQLException {
 		if (value == null) {
-			ps.setNull(index, java.sql.Types.INTEGER);
+			ps.setNull(index, Types.INTEGER);
 		} else {
 			ps.setInt(index, value);
 		}
 	}
 
-}// QnaDao
+	// QuestionDTO로 변환 (목록·상세가 같이 씀)
+	private QuestionDTO questionDtoMapper(ResultSet rs) throws SQLException {
+
+		QuestionDTO dto = new QuestionDTO();
+
+		dto.setQuestionId(rs.getInt("Q_ID"));
+		dto.setMemberId(rs.getString("MEMBER_ID"));
+		dto.setTitle(rs.getString("TITLE"));
+		dto.setContent(rs.getString("CONTENT"));
+		dto.setViewCount(rs.getInt("VIEW_COUNT"));
+
+		// CAT_ID, LEC_ID는 null일 수 있어서 Integer로 받기
+		dto.setCatId(rs.getObject("CAT_ID", Integer.class));
+		dto.setLecId(rs.getObject("LEC_ID", Integer.class));
+
+		// 문자열 -> ENUM값으로 변환
+		dto.setQuestionType(QuestionType.valueOf(rs.getString("Q_TYPE")));
+		dto.setQuestionStatus(QuestionStatus.valueOf(rs.getString("Q_STATUS")));
+		dto.setDelYn(YnType.valueOf(rs.getString("DEL_YN")));
+
+		// DATETIME -> LocalDateTime으로 변환
+		dto.setRegDate(rs.getObject("REG_DATE", LocalDateTime.class));
+		dto.setModDate(rs.getObject("MOD_DATE", LocalDateTime.class));
+
+		// question_summary 뷰에서 더해진 값 (분류를 안 골랐으면 학교급·학년·과목은 NULL)
+		dto.setWriterName(rs.getString("WRITER_NAME"));
+		String schoolLevel = rs.getString("SCHOOL_LEVEL");
+		dto.setSchoolLevel(schoolLevel == null ? null : SchoolLevel.valueOf(schoolLevel));
+		dto.setGrade(rs.getObject("GRADE", Integer.class));
+		dto.setSubjectName(rs.getString("SUBJECT_NAME"));
+		dto.setAnswerCount(rs.getInt("ANSWER_COUNT"));
+
+		return dto;
+	}
+
+	// AnswerDTO로 변환 (답변 목록·1개 조회가 같이 씀)
+	private AnswerDTO answerDtoMapper(ResultSet rs) throws SQLException {
+
+		AnswerDTO dto = new AnswerDTO();
+
+		dto.setAnswerId(rs.getInt("A_ID"));
+		dto.setQuestionId(rs.getInt("Q_ID"));
+		dto.setMemberId(rs.getString("MEMBER_ID"));
+		dto.setContent(rs.getString("CONTENT"));
+		dto.setDelYn(YnType.valueOf(rs.getString("DEL_YN")));
+		dto.setRegDate(rs.getObject("REG_DATE", LocalDateTime.class));
+		dto.setModDate(rs.getObject("MOD_DATE", LocalDateTime.class));
+		dto.setWriterName(rs.getString("WRITER_NAME"));
+
+		return dto;
+	}
+}
