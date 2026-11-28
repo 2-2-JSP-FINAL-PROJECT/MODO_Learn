@@ -1,0 +1,100 @@
+<%@ page pageEncoding="UTF-8" %>
+<%--
+	공통 푸터 (현호작성)
+	header.jspf 와 짝으로 각 JSP 맨 아래에서 include 한다 (변수 ctx 는 header.jspf 에서 만든 것)
+--%>
+</main>
+
+<%-- 오른쪽 고정 바로가기 --%>
+<aside class="quick-bar" aria-label="바로가기">
+	<ul>
+		<li>
+			<a href="<%= ctx %>/main#custom">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.5-4 6-.6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+				<span>맞춤 강의</span>
+			</a>
+		</li>
+		<li>
+			<a href="<%= ctx %>/mypage/history">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<span>최근 본 강의</span>
+			</a>
+		</li>
+		<li>
+			<a href="<%= ctx %>/mypage/favorite">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+				<span>찜한 강의</span>
+			</a>
+		</li>
+		<li>
+			<a href="<%= ctx %>/a11y">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="4.5" r="1.8" fill="currentColor"/><path d="M5 8.5l7 1.5 7-1.5M12 10v4.5l-3 6M12 14.5l3 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				<span>접근성</span>
+			</a>
+		</li>
+	</ul>
+	<button type="button" class="quick-top js-top">
+		<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 14l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		TOP<span class="sr-only"> 맨 위로</span>
+	</button>
+</aside>
+
+<footer class="site-footer">
+
+	<%-- 정책 링크 · 강의 출처 사이트 --%>
+	<div class="foot-top">
+		<div class="inner">
+			<ul class="foot-links">
+				<li><a class="em" href="<%= ctx %>/policy/privacy">개인정보처리방침</a></li>
+				<li><a href="<%= ctx %>/policy/terms">이용약관</a></li>
+				<li><a href="<%= ctx %>/about">서비스 소개</a></li>
+				<li><a href="<%= ctx %>/notice">공지사항</a></li>
+				<li><a href="<%= ctx %>/qna">Q&amp;A</a></li>
+			</ul>
+
+			<div class="foot-family">
+				<label class="sr-only" for="family-site">강의 출처 사이트</label>
+				<select id="family-site">
+					<option value="">강의 출처 사이트</option>
+					<option value="https://www.ebs.co.kr">EBS</option>
+					<option value="https://www.ebsi.co.kr">EBSi (고등)</option>
+					<option value="https://primary.ebs.co.kr">EBS 초등</option>
+					<option value="https://mid.ebs.co.kr">EBS 중학</option>
+					<option value="https://www.kmooc.kr">K-MOOC</option>
+					<option value="https://ko.khanacademy.org">칸아카데미</option>
+				</select>
+				<button type="button" class="js-family-go">이동<span class="sr-only"> (새 창 열림)</span></button>
+			</div>
+		</div>
+	</div>
+
+	<%-- 로고 · 프로젝트 정보 · 저작권 --%>
+	<div class="foot-bottom">
+		<div class="inner">
+			<p class="foot-logo">
+				<span class="logo-mark" aria-hidden="true">
+					<svg viewBox="0 0 32 32" width="30" height="30">
+						<rect width="32" height="32" rx="9" fill="currentColor"/>
+						<path d="M8 10.5c2.6-1.2 5.3-1.2 8 0v12c-2.7-1.2-5.4-1.2-8 0z" fill="#fff"/>
+						<path d="M16 10.5c2.6-1.2 5.3-1.2 8 0v12c-2.7-1.2-5.4-1.2-8 0z" fill="#fff" opacity=".75"/>
+					</svg>
+				</span>
+				모두의 강의실
+			</p>
+
+			<div class="foot-info">
+				<p>유한대학교 JSP 기말 팀 프로젝트 · 초·중·고 무료 강의 큐레이션</p>
+				<p>SDG4 모두를 위한 양질의 교육 : 돈이 없어도, 누구나 좋은 수업을</p>
+				<p class="foot-copy">© 2026 모두의 강의실. 강의 영상의 저작권은 각 제공 기관에 있습니다.</p>
+			</div>
+
+			<a class="foot-github" href="https://github.com/HyeonHo41/MODO_Learn" target="_blank" rel="noopener noreferrer">
+				<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5a3.9 3.9 0 0 1 1-2.7 3.6 3.6 0 0 1 .1-2.7s.8-.3 2.8 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>
+				<span>GitHub<span class="sr-only"> (새 창 열림)</span></span>
+			</a>
+		</div>
+	</div>
+</footer>
+
+</body>
+</html>
