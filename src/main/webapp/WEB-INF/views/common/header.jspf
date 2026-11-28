@@ -161,7 +161,10 @@
 <%	} else { %>
 				<a class="user-link" href="<%= ctx %>/mypage">마이페이지</a>
 <%	} %>
-				<a class="user-link" href="<%= ctx %>/member/logout">로그아웃</a>
+				<%-- 로그아웃은 POST (링크 하나로 강제 로그아웃되는 것을 막는다) --%>
+				<form class="logout-form" action="<%= ctx %>/member/logout" method="post">
+					<button type="submit" class="user-link">로그아웃</button>
+				</form>
 <% } %>
 			</div>
 		</div>
@@ -253,11 +256,19 @@
 						<li><a href="<%= ctx %>/member/join">회원가입</a></li>
 <% } else if (loginUser.isAdmin()) { %>
 						<li><a href="<%= ctx %>/admin">관리자 페이지</a></li>
-						<li><a href="<%= ctx %>/member/logout">로그아웃</a></li>
+						<li>
+							<form class="logout-form" action="<%= ctx %>/member/logout" method="post">
+								<button type="submit">로그아웃</button>
+							</form>
+						</li>
 <% } else { %>
 						<li><a href="<%= ctx %>/mypage">마이페이지</a></li>
 						<li><a href="<%= ctx %>/mascot">내 마스코트</a></li>
-						<li><a href="<%= ctx %>/member/logout">로그아웃</a></li>
+						<li>
+							<form class="logout-form" action="<%= ctx %>/member/logout" method="post">
+								<button type="submit">로그아웃</button>
+							</form>
+						</li>
 <% } %>
 						<li><a href="<%= ctx %>/a11y">접근성 설정</a></li>
 					</ul>
