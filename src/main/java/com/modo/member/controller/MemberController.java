@@ -36,9 +36,6 @@ public class MemberController extends HttpServlet{
 		case "/join":
 			forward(req, resp, "member/join");
 			break;
-		case "/logout":
-			logout(req, resp);
-			break;
 		default:
 			resp.sendError(HttpServletResponse.SC_NOT_FOUND);
 
@@ -57,6 +54,9 @@ public class MemberController extends HttpServlet{
 		switch (path) {
 		case "/login":
 			login(req, resp);
+			break;
+		case "/logout":
+			logout(req, resp);
 			break;
 		case "/join":
 			join(req, resp);
